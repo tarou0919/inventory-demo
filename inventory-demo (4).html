@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>在庫管理デモシステム</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+:root {
+  --bg: #f7f5f0;
+  --ink: #141210;
+  --accent: #2563eb;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+  --muted: #6b7280;
+  --border: #e5e7eb;
+  --card: #ffffff;
+  --success-bg: #dcfce7;
+  --warning-bg: #fef3c7;
+  --danger-bg: #fee2e2;
+  --success-text: #065f46;
+  --warning-text: #92400e;
+  --danger-text: #991b1b;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--ink); font-family: 'Noto Sans JP', sans-serif; line-height: 1.6; }
+
+.site-header { background: var(--ink); color: #fff; padding: 14px 32px; display: flex; justify-content: space-between; align-items: center; }
+.site-title { font-size: 15px; font-weight: 500; color: #fff; }
+
+/* TABS */
+.tabs { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 32px; display: flex; gap: 0; overflow-x: auto; }
+.tab { font-size: 13px; padding: 14px 20px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); white-space: nowrap; transition: all 0.15s; background: none; border-top: none; border-left: none; border-right: none; font-family: 'Noto Sans JP', sans-serif; }
+.tab:hover { color: var(--ink); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 500; }
+
+.main { max-width: 1000px; margin: 0 auto; padding: 28px 24px 80px; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* SUMMARY */
+.summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.summary-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.summary-card .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.summary-card .value { font-size: 24px; font-weight: 700; }
+.summary-card.danger { background: var(--danger-bg); border-color: #fca5a5; }
+.summary-card.danger .label { color: var(--danger-text); }
+.summary-card.danger .value { color: var(--danger); }
+.summary-card.warning { background: var(--warning-bg); border-color: #fcd34d; }
+.summary-card.warning .label { color: var(--warning-text); }
+.summary-card.warning .value { color: var(--warning); }
+.summary-card.success { background: var(--success-bg); border-color: #6ee7b7; }
+.summary-card.success .label { color: var(--success-text); }
+.summary-card.success .value { color: var(--success); }
+
+/* CARDS */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+.card-title { font-size: 15px; font-weight: 500; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.card-title span { font-size: 18px; }
+
+/* SETTINGS */
+.settings-panel { background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 24px; overflow: hidden; }
+.settings-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; cursor: pointer; user-select: none; background: #f9fafb; border-bottom: 1px solid var(--border); }
+.settings-header:hover { background: #f3f4f6; }
+.settings-title { font-size: 14px; font-weight: 500; }
+.settings-arrow { font-size: 12px; color: var(--muted); transition: transform 0.2s; }
+.settings-arrow.open { transform: rotate(180deg); }
+.settings-body { display: none; padding: 18px; }
+.settings-body.open { display: block; }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.setting-item { display: flex; flex-direction: column; gap: 6px; }
+.setting-item label { font-size: 12px; color: var(--muted); font-weight: 500; }
+.setting-item input[type="number"] { width: 100%; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+.settings-divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+.settings-section-title { font-size: 12px; font-weight: 500; color: var(--muted); margin-bottom: 10px; letter-spacing: 0.05em; }
+
+/* TOOLBAR */
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px; }
+.toolbar-title { font-size: 15px; font-weight: 500; }
+
+/* BUTTONS */
+.btn { font-family: 'Noto Sans JP', sans-serif; font-size: 13px; padding: 7px 16px; border: 1px solid var(--border); background: var(--card); color: var(--ink); border-radius: 6px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.btn:hover { background: var(--bg); }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: #1d4ed8; }
+.btn-success { background: var(--success-bg); color: var(--success-text); border-color: #6ee7b7; }
+.btn-success:hover { background: #bbf7d0; }
+.btn-danger { background: var(--danger-bg); color: var(--danger-text); border-color: #fca5a5; }
+.btn-danger:hover { background: #fecaca; }
+.btn-warning { background: var(--warning-bg); color: var(--warning-text); border-color: #fcd34d; }
+.btn-warning:hover { background: #fde68a; }
+.btn-sm { font-size: 12px; padding: 4px 12px; }
+.industry-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* TABLE */
+.table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 600px; }
+thead tr { background: #f9fafb; }
+th { padding: 10px 14px; text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: #f9fafb; }
+
+.status-badge { display: inline-block; font-size: 11px; padding: 3px 10px; border-radius: 100px; font-weight: 500; white-space: nowrap; }
+.status-badge.danger { background: var(--danger-bg); color: var(--danger-text); }
+.status-badge.warning { background: var(--warning-bg); color: var(--warning-text); }
+.status-badge.success { background: var(--success-bg); color: var(--success-text); }
+.status-badge.info { background: #eff6ff; color: #1e40af; }
+
+input[type="number"].stock-input { width: 72px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; text-align: center; font-family: 'Space Mono', monospace; }
+input[type="number"].stock-input:focus { outline: none; border-color: var(--accent); }
+
+/* CHART */
+.chart-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 24px; }
+.chart-legend { display: flex; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+.legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+.chart-container { position: relative; height: 280px; }
+
+/* LOG */
+.log-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 24px; }
+.log-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f9fafb; border-bottom: 1px solid var(--border); }
+.log-header span { font-size: 14px; font-weight: 500; }
+.log-body { max-height: 200px; overflow-y: auto; }
+.log-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.log-item:last-child { border-bottom: none; }
+.log-time { font-family: 'Space Mono', monospace; font-size: 11px; color: var(--muted); }
+.log-empty { padding: 20px; text-align: center; font-size: 13px; color: var(--muted); }
+
+/* CALC */
+.calc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.calc-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+.calc-card h3 { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+.calc-desc { font-size: 12px; color: var(--muted); margin-bottom: 16px; line-height: 1.6; }
+.calc-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.calc-row label { font-size: 12px; color: var(--muted); font-weight: 500; }
+.calc-row input { padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; font-family: 'Noto Sans JP', sans-serif; }
+.calc-row input:focus { outline: none; border-color: var(--accent); }
+.calc-result { background: var(--bg); border-radius: 8px; padding: 12px 14px; margin-top: 12px; display: none; }
+.calc-result.show { display: block; }
+.calc-result-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.calc-result-value { font-size: 22px; font-weight: 700; color: var(--accent); font-family: 'Space Mono', monospace; }
+.calc-result-note { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+/* REPORT */
+.report-section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 20px; }
+.report-header { display: flex; justify-content: space-between; align-items: center; padding: 14px 18px; background: #f9fafb; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 8px; }
+.report-header h3 { font-size: 14px; font-weight: 500; }
+.report-body { padding: 18px; }
+
+/* ABC */
+.abc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; }
+.abc-card { border-radius: 8px; padding: 14px; text-align: center; }
+.abc-card.a { background: #fee2e2; border: 1px solid #fca5a5; }
+.abc-card.b { background: #fef3c7; border: 1px solid #fcd34d; }
+.abc-card.c { background: #f0fdf4; border: 1px solid #86efac; }
+.abc-card .abc-label { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+.abc-card.a .abc-label { color: var(--danger); }
+.abc-card.b .abc-label { color: var(--warning); }
+.abc-card.c .abc-label { color: var(--success); }
+.abc-card .abc-sub { font-size: 11px; color: var(--muted); }
+
+/* MODAL */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--card); border-radius: 12px; padding: 28px; width: 100%; max-width: 380px; max-height: 90vh; overflow-y: auto; }
+.modal h3 { font-size: 16px; font-weight: 500; margin-bottom: 20px; }
+.form-group { margin-bottom: 14px; }
+.form-group label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; font-weight: 500; }
+.form-group input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 14px; font-family: 'Noto Sans JP', sans-serif; }
+.form-group input:focus { outline: none; border-color: var(--accent); }
+.modal-btns { display: flex; gap: 8px; margin-top: 20px; }
+.modal-btns .btn { flex: 1; text-align: center; }
+
+/* PRINT */
+@media print {
+  .no-print { display: none !important; }
+  .site-header, .tabs { display: none !important; }
+  body { background: #fff; }
+  .print-area { display: block !important; }
+}
+
+@media (max-width: 600px) {
+  .site-header, .main { padding-left: 16px; padding-right: 16px; }
+  .tabs { padding: 0 16px; }
+  .abc-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="site-header no-print">
+  <div class="site-title">在庫管理デモシステム</div>
+  <div style="font-family:'Space Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5);letter-spacing:0.1em;">全業種対応 / DEMO</div>
+</header>
+
+<!-- TABS -->
+<div class="tabs no-print">
+  <button class="tab active" onclick="switchTab('dashboard', this)">📊 ダッシュボード</button>
+  <button class="tab" onclick="switchTab('calc', this)">🧮 計算ツール</button>
+  <button class="tab" onclick="switchTab('report', this)">📄 資料作成</button>
+</div>
+
+<main class="main">
+
+  <!-- ===== TAB1: ダッシュボード ===== -->
+  <div id="tab-dashboard" class="tab-content active">
+
+    <div class="summary-grid" id="summary"></div>
+
+    <!-- 業種切り替え -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px;margin-bottom:24px;">
+      <p class="settings-section-title" style="margin-bottom:12px;">業種を選択してサンプルデータを切り替え</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn industry-btn active" onclick="switchIndustry('manufacturing', this)">🏭 製造業</button>
+        <button class="btn industry-btn" onclick="switchIndustry('retail', this)">🛒 小売業・EC</button>
+        <button class="btn industry-btn" onclick="switchIndustry('food', this)">🍳 飲食業</button>
+        <button class="btn industry-btn" onclick="switchIndustry('medical', this)">💊 医療・薬局</button>
+      </div>
+      <p id="industryDesc" style="font-size:13px;color:var(--muted);margin-top:12px;">部品・原材料の在庫管理に対応。製造ラインの停止リスクを防ぎます。</p>
+    </div>
+
+    <!-- 設定 -->
+    <div class="settings-panel">
+      <div class="settings-header" onclick="toggleSettings()">
+        <span class="settings-title">⚙ 設定・カスタマイズ</span>
+        <span class="settings-arrow" id="settingsArrow">▼</span>
+      </div>
+      <div class="settings-body" id="settingsBody">
+        <p class="settings-section-title">表示設定</p>
+        <div class="settings-grid">
+          <div class="setting-item">
+            <label>グラフの高さ（px）</label>
+            <input type="number" id="chartHeight" min="150" max="600" value="280" onchange="updateChartHeight(this.value)" />
+          </div>
+        </div>
+        <hr class="settings-divider" />
+        <p class="settings-section-title">データ操作</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn" onclick="resetData()">データをリセット</button>
+          <button class="btn btn-warning" onclick="simulateLow()">在庫切れをシミュレート</button>
+          <button class="btn btn-warning" onclick="simulateOver()">過剰在庫をシミュレート</button>
+          <button class="btn btn-success" onclick="allOptimal()">全て適正在庫にする</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- テーブル -->
+    <div class="toolbar">
+      <span class="toolbar-title">品目一覧</span>
+      <button class="btn btn-primary" onclick="openAddModal()">＋ 品目を追加</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>品目名</th><th>現在庫数</th><th>発注点</th><th>上限在庫</th><th>状態</th><th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="itemTable"></tbody>
+      </table>
+    </div>
+
+    <!-- グラフ -->
+    <div class="chart-wrap">
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#378ADD;"></div>現在庫数</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#E24B4A;"></div>発注点</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#EF9F27;"></div>上限在庫</div>
+      </div>
+      <div class="chart-container" id="chartContainer"><canvas id="chart"></canvas></div>
+    </div>
+
+    <!-- ログ -->
+    <div class="log-wrap">
+      <div class="log-header">
+        <span>操作ログ</span>
+        <button class="btn btn-sm" onclick="clearLog()">クリア</button>
+      </div>
+      <div class="log-body" id="logBody">
+        <div class="log-empty">操作するとログが表示されます</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== TAB2: 計算ツール ===== -->
+  <div id="tab-calc" class="tab-content">
+    <div class="calc-grid">
+
+      <!-- EOQ -->
+      <div class="calc-card">
+        <h3>📦 経済的発注量（EOQ）</h3>
+        <p class="calc-desc">1回あたりの最適な発注量を自動計算。発注コストと在庫保管コストのバランスを最適化します。</p>
+        <div class="calc-row"><label>年間需要量（個）</label><input type="number" id="eoq-demand" value="1200" min="1" /></div>
+        <div class="calc-row"><label>1回あたり発注コスト（円）</label><input type="number" id="eoq-order-cost" value="5000" min="1" /></div>
+        <div class="calc-row"><label>1個あたり年間保管コスト（円）</label><input type="number" id="eoq-hold-cost" value="200" min="1" /></div>
+        <button class="btn btn-primary" onclick="calcEOQ()" style="width:100%;margin-top:4px;">計算する</button>
+        <div class="calc-result" id="eoq-result">
+          <div class="calc-result-label">最適発注量</div>
+          <div class="calc-result-value" id="eoq-value">---</div>
+          <div class="calc-result-note" id="eoq-note"></div>
+        </div>
+      </div>
+
+      <!-- 安全在庫 -->
+      <div class="calc-card">
+        <h3>🛡️ 安全在庫数の計算</h3>
+        <p class="calc-desc">需要変動・リードタイム変動を考慮した適切な安全在庫数を算出します。</p>
+        <div class="calc-row"><label>1日あたり平均需要量（個）</label><input type="number" id="ss-demand" value="10" min="1" /></div>
+        <div class="calc-row"><label>需要の標準偏差</label><input type="number" id="ss-demand-sd" value="3" min="0" /></div>
+        <div class="calc-row"><label>平均リードタイム（日）</label><input type="number" id="ss-lead" value="7" min="1" /></div>
+        <div class="calc-row"><label>リードタイムの標準偏差（日）</label><input type="number" id="ss-lead-sd" value="2" min="0" /></div>
+        <div class="calc-row">
+          <label>サービス率</label>
+          <select id="ss-z" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;font-family:'Noto Sans JP',sans-serif;">
+            <option value="1.28">90%（Z=1.28）</option>
+            <option value="1.65" selected>95%（Z=1.65）</option>
+            <option value="1.96">97.5%（Z=1.96）</option>
+            <option value="2.33">99%（Z=2.33）</option>
+          </select>
+        </div>
+        <button class="btn btn-primary" onclick="calcSafetyStock()" style="width:100%;margin-top:4px;">計算する</button>
+        <div class="calc-result" id="ss-result">
+          <div class="calc-result-label">推奨安全在庫数</div>
+          <div class="calc-result-value" id="ss-value">---</div>
+          <div class="calc-result-note" id="ss-note"></div>
+        </div>
+      </div>
+
+      <!-- 在庫回転率 -->
+      <div class="calc-card">
+        <h3>🔄 在庫回転率の計算</h3>
+        <p class="calc-desc">在庫が一定期間に何回入れ替わったかを示す指標。高いほど在庫効率が良い状態です。</p>
+        <div class="calc-row"><label>期間中の出庫合計（個）</label><input type="number" id="tr-sales" value="3600" min="1" /></div>
+        <div class="calc-row"><label>期首在庫数（個）</label><input type="number" id="tr-begin" value="500" min="0" /></div>
+        <div class="calc-row"><label>期末在庫数（個）</label><input type="number" id="tr-end" value="400" min="0" /></div>
+        <button class="btn btn-primary" onclick="calcTurnover()" style="width:100%;margin-top:4px;">計算する</button>
+        <div class="calc-result" id="tr-result">
+          <div class="calc-result-label">在庫回転率</div>
+          <div class="calc-result-value" id="tr-value">---</div>
+          <div class="calc-result-note" id="tr-note"></div>
+        </div>
+      </div>
+
+      <!-- 在庫金額 -->
+      <div class="calc-card">
+        <h3>💰 在庫金額・コスト計算</h3>
+        <p class="calc-desc">現在の在庫を金額に換算します。品目ごとに単価を入力してください。</p>
+        <div id="price-inputs"></div>
+        <button class="btn btn-primary" onclick="calcInventoryValue()" style="width:100%;margin-top:8px;">合計金額を計算する</button>
+        <div class="calc-result" id="iv-result">
+          <div class="calc-result-label">在庫総額</div>
+          <div class="calc-result-value" id="iv-value">---</div>
+          <div class="calc-result-note" id="iv-note"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== TAB3: 資料作成 ===== -->
+  <div id="tab-report" class="tab-content">
+
+    <!-- 発注書 -->
+    <div class="report-section">
+      <div class="report-header">
+        <h3>📋 発注書の自動生成</h3>
+        <button class="btn btn-primary" onclick="printOrderSheet()">印刷・PDF出力</button>
+      </div>
+      <div class="report-body" id="order-sheet-body"></div>
+    </div>
+
+    <!-- 棚卸し表 -->
+    <div class="report-section">
+      <div class="report-header">
+        <h3>📝 棚卸し表の作成</h3>
+        <button class="btn btn-primary" onclick="printStocktake()">印刷・PDF出力</button>
+      </div>
+      <div class="report-body" id="stocktake-body"></div>
+    </div>
+
+    <!-- ABC分析 -->
+    <div class="report-section">
+      <div class="report-header">
+        <h3>📊 ABC分析レポート</h3>
+        <button class="btn btn-primary" onclick="printABC()">印刷・PDF出力</button>
+      </div>
+      <div class="report-body" id="abc-body"></div>
+    </div>
+
+    <!-- 月次在庫レポート -->
+    <div class="report-section">
+      <div class="report-header">
+        <h3>📈 在庫状況サマリーレポート</h3>
+        <button class="btn btn-primary" onclick="printSummaryReport()">印刷・PDF出力</button>
+      </div>
+      <div class="report-body" id="summary-report-body"></div>
+    </div>
+
+  </div>
+
+</main>
+
+<!-- 入荷モーダル -->
+<div class="modal-overlay" id="orderModal">
+  <div class="modal">
+    <h3 id="orderModalTitle">入荷数を入力</h3>
+    <div class="form-group"><label>入荷数（個）</label><input type="number" id="orderInput" min="1" max="9999" value="50" /></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeOrderModal()">キャンセル</button>
+      <button class="btn btn-success" onclick="confirmOrder()">入荷する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 出庫モーダル -->
+<div class="modal-overlay" id="shipModal">
+  <div class="modal">
+    <h3 id="shipModalTitle">出庫数を入力</h3>
+    <div class="form-group"><label>出庫数（個）</label><input type="number" id="shipInput" min="1" max="9999" value="10" /></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeShipModal()">キャンセル</button>
+      <button class="btn btn-warning" onclick="confirmShip()">出庫する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 編集モーダル -->
+<div class="modal-overlay" id="editModal">
+  <div class="modal">
+    <h3 id="editModalTitle">品目を編集</h3>
+    <div class="form-group"><label>品目名</label><input type="text" id="editName" /></div>
+    <div class="form-group"><label>現在庫数</label><input type="number" id="editStock" min="0" /></div>
+    <div class="form-group"><label>発注点</label><input type="number" id="editReorder" min="0" /></div>
+    <div class="form-group"><label>上限在庫</label><input type="number" id="editMax" min="0" /></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeEditModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="confirmEdit()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- 品目追加モーダル -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h3>品目を追加</h3>
+    <div class="form-group"><label>品目名</label><input type="text" id="newName" placeholder="例：商品A" /></div>
+    <div class="form-group"><label>現在庫数</label><input type="number" id="newStock" min="0" value="100" /></div>
+    <div class="form-group"><label>発注点</label><input type="number" id="newReorder" min="0" value="30" /></div>
+    <div class="form-group"><label>上限在庫</label><input type="number" id="newMax" min="0" value="200" /></div>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeAddModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="confirmAdd()">追加する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const industryData = {
+  manufacturing: {
+    desc: '部品・原材料の在庫管理に対応。製造ラインの停止リスクを防ぎます。',
+    items: [
+      { name: '部品A', stock: 45, reorder: 50, max: 200 },
+      { name: '部品B', stock: 180, reorder: 40, max: 150 },
+      { name: '原材料C', stock: 95, reorder: 30, max: 180 },
+      { name: '部品D', stock: 20, reorder: 60, max: 160 },
+      { name: '資材E', stock: 210, reorder: 50, max: 180 },
+      { name: '消耗品F', stock: 75, reorder: 40, max: 160 },
+    ]
+  },
+  retail: {
+    desc: '商品・在庫の管理に対応。欠品・過剰在庫を防ぎ売上機会を最大化します。',
+    items: [
+      { name: 'Tシャツ(S)', stock: 8, reorder: 10, max: 50 },
+      { name: 'Tシャツ(M)', stock: 35, reorder: 10, max: 50 },
+      { name: 'ジーンズ', stock: 55, reorder: 8, max: 40 },
+      { name: 'スニーカー', stock: 5, reorder: 6, max: 30 },
+      { name: 'バッグ', stock: 18, reorder: 5, max: 25 },
+      { name: 'アクセサリー', stock: 42, reorder: 15, max: 60 },
+    ]
+  },
+  food: {
+    desc: '食材・飲料の在庫管理に対応。食品ロスの削減と食材切れを同時に防ぎます。',
+    items: [
+      { name: '鶏もも肉(kg)', stock: 3, reorder: 5, max: 20 },
+      { name: '玉ねぎ(kg)', stock: 28, reorder: 3, max: 15 },
+      { name: '小麦粉(kg)', stock: 8, reorder: 4, max: 20 },
+      { name: 'サラダ油(L)', stock: 6, reorder: 3, max: 15 },
+      { name: 'ビール(本)', stock: 120, reorder: 24, max: 96 },
+      { name: '醤油(L)', stock: 4, reorder: 2, max: 10 },
+    ]
+  },
+  medical: {
+    desc: '医薬品・医療備品の在庫管理に対応。適切な在庫維持で患者対応を万全に。',
+    items: [
+      { name: '解熱鎮痛剤', stock: 15, reorder: 20, max: 100 },
+      { name: '消毒液(L)', stock: 8, reorder: 5, max: 30 },
+      { name: 'マスク(箱)', stock: 45, reorder: 10, max: 50 },
+      { name: '手袋(箱)', stock: 52, reorder: 10, max: 40 },
+      { name: '点滴セット', stock: 12, reorder: 15, max: 60 },
+      { name: '注射器', stock: 80, reorder: 20, max: 100 },
+    ]
+  }
+};
+
+const defaultItems = JSON.parse(JSON.stringify(industryData.manufacturing.items));
+let items = JSON.parse(JSON.stringify(defaultItems));
+let chart = null;
+let orderTarget = -1, shipTarget = -1, editTarget = -1;
+let logs = [];
+
+// ===== TABS =====
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+  if (id === 'report') renderReports();
+  if (id === 'calc') renderPriceInputs();
+}
+
+// ===== STATUS =====
+const getStatus = item => {
+  if (item.stock <= item.reorder) return { label: '要発注', cls: 'danger' };
+  if (item.stock >= item.max) return { label: '過剰在庫', cls: 'warning' };
+  return { label: '適正', cls: 'success' };
+};
+
+// ===== LOG =====
+function addLog(msg) {
+  const now = new Date();
+  const time = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}:${now.getSeconds().toString().padStart(2,'0')}`;
+  logs.unshift({ msg, time });
+  if (logs.length > 50) logs.pop();
+  renderLog();
+}
+function renderLog() {
+  const body = document.getElementById('logBody');
+  if (!logs.length) { body.innerHTML = '<div class="log-empty">操作するとログが表示されます</div>'; return; }
+  body.innerHTML = logs.map(l => `<div class="log-item"><span>${l.msg}</span><span class="log-time">${l.time}</span></div>`).join('');
+}
+function clearLog() { logs = []; renderLog(); }
+
+// ===== RENDER =====
+function renderSummary() {
+  const danger = items.filter(i => i.stock <= i.reorder).length;
+  const over = items.filter(i => i.stock >= i.max).length;
+  const ok = items.filter(i => i.stock > i.reorder && i.stock < i.max).length;
+  document.getElementById('summary').innerHTML = `
+    <div class="summary-card"><div class="label">管理品目数</div><div class="value">${items.length}品目</div></div>
+    <div class="summary-card danger"><div class="label">要発注</div><div class="value">${danger}品目</div></div>
+    <div class="summary-card warning"><div class="label">過剰在庫</div><div class="value">${over}品目</div></div>
+    <div class="summary-card success"><div class="label">適正在庫</div><div class="value">${ok}品目</div></div>
+  `;
+}
+
+function renderTable() {
+  const tbody = document.getElementById('itemTable');
+  tbody.innerHTML = '';
+  items.forEach((item, i) => {
+    const s = getStatus(item);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:500;">${item.name}</td>
+      <td><input type="number" class="stock-input" min="0" max="9999" value="${item.stock}" step="1" onchange="updateStock(${i}, this.value)" /></td>
+      <td style="color:var(--muted);">${item.reorder}</td>
+      <td style="color:var(--muted);">${item.max}</td>
+      <td><span class="status-badge ${s.cls}">${s.label}</span></td>
+      <td>
+        <div style="display:flex;gap:5px;flex-wrap:wrap;">
+          <button class="btn btn-success btn-sm" onclick="openOrderModal(${i})">入荷</button>
+          <button class="btn btn-warning btn-sm" onclick="openShipModal(${i})">出庫</button>
+          <button class="btn btn-sm" onclick="openEditModal(${i})">編集</button>
+          <button class="btn btn-danger btn-sm" onclick="removeItem(${i})">削除</button>
+        </div>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function renderChart() {
+  const colors = items.map(item => {
+    if (item.stock <= item.reorder) return 'rgba(220,38,38,0.75)';
+    if (item.stock >= item.max) return 'rgba(217,119,6,0.75)';
+    return 'rgba(37,99,235,0.75)';
+  });
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById('chart'), {
+    data: {
+      labels: items.map(i => i.name),
+      datasets: [
+        { type:'bar', label:'現在庫', data: items.map(i => i.stock), backgroundColor: colors, borderWidth: 1 },
+        { type:'line', label:'発注点', data: items.map(i => i.reorder), borderColor:'#E24B4A', borderWidth:2, borderDash:[5,5], pointRadius:4, pointBackgroundColor:'#E24B4A', tension:0 },
+        { type:'line', label:'上限', data: items.map(i => i.max), borderColor:'#EF9F27', borderWidth:2, borderDash:[5,5], pointRadius:4, pointBackgroundColor:'#EF9F27', tension:0 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { autoSkip: false, font: { size: 12 } }, grid: { color: 'rgba(0,0,0,0.05)' } },
+        y: { ticks: { font: { size: 12 }, callback: v => v.toLocaleString() }, grid: { color: 'rgba(0,0,0,0.05)' } }
+      }
+    }
+  });
+}
+
+function render() { renderSummary(); renderTable(); renderChart(); }
+
+// ===== STOCK OPS =====
+function updateStock(i, val) {
+  const old = items[i].stock;
+  items[i].stock = Math.max(0, parseInt(val) || 0);
+  addLog(`「${items[i].name}」在庫変更：${old} → ${items[i].stock}`);
+  renderSummary();
+}
+function removeItem(i) {
+  if (items.length <= 1) return alert('最低1品目必要です');
+  if (confirm(`「${items[i].name}」を削除しますか？`)) { addLog(`「${items[i].name}」削除`); items.splice(i, 1); render(); }
+}
+
+// ===== MODALS =====
+function openOrderModal(i) { orderTarget=i; document.getElementById('orderModalTitle').textContent=`「${items[i].name}」入荷数を入力`; document.getElementById('orderInput').value=50; document.getElementById('orderModal').classList.add('open'); }
+function closeOrderModal() { document.getElementById('orderModal').classList.remove('open'); orderTarget=-1; }
+function confirmOrder() {
+  const val = parseInt(document.getElementById('orderInput').value)||0;
+  if (orderTarget>=0 && val>0) { const old=items[orderTarget].stock; items[orderTarget].stock=old+val; addLog(`「${items[orderTarget].name}」入荷：+${val}個`); render(); }
+  closeOrderModal();
+}
+function openShipModal(i) { shipTarget=i; document.getElementById('shipModalTitle').textContent=`「${items[i].name}」出庫数を入力`; document.getElementById('shipInput').value=10; document.getElementById('shipModal').classList.add('open'); }
+function closeShipModal() { document.getElementById('shipModal').classList.remove('open'); shipTarget=-1; }
+function confirmShip() {
+  const val = parseInt(document.getElementById('shipInput').value)||0;
+  if (shipTarget>=0 && val>0) { const old=items[shipTarget].stock; items[shipTarget].stock=Math.max(0,old-val); addLog(`「${items[shipTarget].name}」出庫：-${val}個`); render(); }
+  closeShipModal();
+}
+function openEditModal(i) {
+  editTarget=i;
+  document.getElementById('editModalTitle').textContent=`「${items[i].name}」を編集`;
+  document.getElementById('editName').value=items[i].name;
+  document.getElementById('editStock').value=items[i].stock;
+  document.getElementById('editReorder').value=items[i].reorder;
+  document.getElementById('editMax').value=items[i].max;
+  document.getElementById('editModal').classList.add('open');
+}
+function closeEditModal() { document.getElementById('editModal').classList.remove('open'); editTarget=-1; }
+function confirmEdit() {
+  const name=document.getElementById('editName').value.trim();
+  if (!name) return alert('品目名を入力してください');
+  if (editTarget>=0) { items[editTarget]={name,stock:parseInt(document.getElementById('editStock').value)||0,reorder:parseInt(document.getElementById('editReorder').value)||0,max:parseInt(document.getElementById('editMax').value)||0}; addLog(`「${name}」設定変更`); render(); }
+  closeEditModal();
+}
+function openAddModal() { document.getElementById('newName').value=''; document.getElementById('newStock').value=100; document.getElementById('newReorder').value=30; document.getElementById('newMax').value=200; document.getElementById('addModal').classList.add('open'); }
+function closeAddModal() { document.getElementById('addModal').classList.remove('open'); }
+function confirmAdd() {
+  const name=document.getElementById('newName').value.trim();
+  if (!name) return alert('品目名を入力してください');
+  items.push({name,stock:parseInt(document.getElementById('newStock').value)||0,reorder:parseInt(document.getElementById('newReorder').value)||0,max:parseInt(document.getElementById('newMax').value)||0});
+  addLog(`「${name}」追加`); closeAddModal(); render();
+}
+
+// ===== SETTINGS =====
+function toggleSettings() { document.getElementById('settingsBody').classList.toggle('open'); document.getElementById('settingsArrow').classList.toggle('open'); }
+function updateChartHeight(val) { document.getElementById('chartContainer').style.height=Math.max(150,Math.min(600,parseInt(val)||280))+'px'; renderChart(); }
+function switchIndustry(key, btn) {
+  const data=industryData[key]; if (!data) return;
+  items=JSON.parse(JSON.stringify(data.items));
+  document.getElementById('industryDesc').textContent=data.desc;
+  document.querySelectorAll('.industry-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  addLog(`業種切替：${btn.textContent.trim()}`);
+  render();
+}
+function resetData() { if (confirm('リセットしますか？')) { items=JSON.parse(JSON.stringify(defaultItems)); addLog('リセット'); render(); } }
+function simulateLow() { items.forEach(i=>{ i.stock=Math.floor(i.reorder*0.5); }); addLog('在庫切れシミュレーション'); render(); }
+function simulateOver() { items.forEach(i=>{ i.stock=Math.floor(i.max*1.2); }); addLog('過剰在庫シミュレーション'); render(); }
+function allOptimal() { items.forEach(i=>{ i.stock=Math.floor((i.reorder+i.max)/2); }); addLog('全品目適正在庫に設定'); render(); }
+
+// ===== CALC =====
+function calcEOQ() {
+  const D=parseFloat(document.getElementById('eoq-demand').value)||0;
+  const S=parseFloat(document.getElementById('eoq-order-cost').value)||0;
+  const H=parseFloat(document.getElementById('eoq-hold-cost').value)||0;
+  if (!D||!S||!H) return alert('全ての値を入力してください');
+  const eoq=Math.round(Math.sqrt((2*D*S)/H));
+  const times=Math.round(D/eoq);
+  document.getElementById('eoq-value').textContent=eoq+'個';
+  document.getElementById('eoq-note').textContent=`年間発注回数の目安：約${times}回`;
+  document.getElementById('eoq-result').classList.add('show');
+}
+
+function calcSafetyStock() {
+  const d=parseFloat(document.getElementById('ss-demand').value)||0;
+  const sd=parseFloat(document.getElementById('ss-demand-sd').value)||0;
+  const L=parseFloat(document.getElementById('ss-lead').value)||0;
+  const sL=parseFloat(document.getElementById('ss-lead-sd').value)||0;
+  const Z=parseFloat(document.getElementById('ss-z').value)||1.65;
+  if (!d||!L) return alert('需要量とリードタイムを入力してください');
+  const ss=Math.round(Z*Math.sqrt(L*(sd**2)+((d**2)*(sL**2))));
+  const rop=Math.round(d*L+ss);
+  document.getElementById('ss-value').textContent=ss+'個';
+  document.getElementById('ss-note').textContent=`発注点の目安：${rop}個（平均需要×LT＋安全在庫）`;
+  document.getElementById('ss-result').classList.add('show');
+}
+
+function calcTurnover() {
+  const sales=parseFloat(document.getElementById('tr-sales').value)||0;
+  const begin=parseFloat(document.getElementById('tr-begin').value)||0;
+  const end=parseFloat(document.getElementById('tr-end').value)||0;
+  if (!sales) return alert('出庫合計を入力してください');
+  const avg=(begin+end)/2;
+  const rate=avg>0?(sales/avg).toFixed(2):0;
+  const days=rate>0?Math.round(365/rate):0;
+  document.getElementById('tr-value').textContent=rate+'回転';
+  document.getElementById('tr-note').textContent=`平均在庫日数：約${days}日`;
+  document.getElementById('tr-result').classList.add('show');
+}
+
+function renderPriceInputs() {
+  const wrap=document.getElementById('price-inputs');
+  wrap.innerHTML='';
+  items.forEach((item,i)=>{
+    wrap.innerHTML+=`<div class="calc-row"><label>${item.name}（${item.stock}個）単価（円）</label><input type="number" id="price-${i}" min="0" value="100" placeholder="単価を入力" /></div>`;
+  });
+}
+
+function calcInventoryValue() {
+  let total=0;
+  const details=[];
+  items.forEach((item,i)=>{
+    const price=parseFloat(document.getElementById('price-'+i)?.value)||0;
+    const val=item.stock*price;
+    total+=val;
+    details.push(`${item.name}：${item.stock}個×¥${price.toLocaleString()}＝¥${val.toLocaleString()}`);
+  });
+  document.getElementById('iv-value').textContent='¥'+total.toLocaleString();
+  document.getElementById('iv-note').textContent=details.join(' / ');
+  document.getElementById('iv-result').classList.add('show');
+}
+
+// ===== REPORTS =====
+const today=()=>{const d=new Date();return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;};
+
+function renderReports() { renderOrderSheet(); renderStocktake(); renderABC(); renderSummaryReport(); }
+
+function renderOrderSheet() {
+  const need=items.filter(i=>i.stock<=i.reorder);
+  const body=document.getElementById('order-sheet-body');
+  if (!need.length) { body.innerHTML='<p style="color:var(--success);font-size:14px;padding:8px 0;">現在、発注が必要な品目はありません。</p>'; return; }
+  body.innerHTML=`
+    <div style="margin-bottom:12px;">
+      <p style="font-size:13px;color:var(--muted);">作成日：${today()} ／ 要発注品目：${need.length}件</p>
+    </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>品目名</th><th>現在庫</th><th>発注点</th><th>不足数</th><th>推奨発注量</th><th>備考</th></tr></thead>
+      <tbody>${need.map(item=>{
+        const shortage=item.reorder-item.stock;
+        const suggested=item.max-item.stock;
+        return `<tr>
+          <td style="font-weight:500;">${item.name}</td>
+          <td style="color:var(--danger);font-weight:500;">${item.stock}</td>
+          <td>${item.reorder}</td>
+          <td style="color:var(--danger);">-${shortage}</td>
+          <td style="color:var(--accent);font-weight:500;">${suggested}個</td>
+          <td style="color:var(--muted);font-size:12px;">上限在庫まで補充</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+    </div>
+  `;
+}
+
+function renderStocktake() {
+  document.getElementById('stocktake-body').innerHTML=`
+    <div style="margin-bottom:12px;">
+      <p style="font-size:13px;color:var(--muted);">棚卸し日：${today()} ／ 担当者：___________</p>
+    </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>No.</th><th>品目名</th><th>システム在庫</th><th>実数（記入欄）</th><th>差異</th><th>確認</th></tr></thead>
+      <tbody>${items.map((item,i)=>`<tr>
+        <td style="color:var(--muted);">${i+1}</td>
+        <td style="font-weight:500;">${item.name}</td>
+        <td>${item.stock}</td>
+        <td style="background:#fffbeb;min-width:80px;">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="background:#fffbeb;min-width:60px;">&nbsp;&nbsp;&nbsp;&nbsp;</td>
+        <td style="background:#fffbeb;text-align:center;">□</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    </div>
+    <p style="font-size:12px;color:var(--muted);margin-top:12px;">※ 実数欄・差異欄は印刷後に手書きで記入してください</p>
+  `;
+}
+
+function renderABC() {
+  const sorted=[...items].sort((a,b)=>b.stock-a.stock);
+  const total=sorted.reduce((s,i)=>s+i.stock,0);
+  let cum=0;
+  const ranked=sorted.map(item=>{
+    cum+=item.stock;
+    const pct=total>0?(cum/total*100):0;
+    const rank=pct<=70?'A':pct<=90?'B':'C';
+    return {...item,rank,pct:Math.round(pct)};
+  });
+  const aItems=ranked.filter(i=>i.rank==='A');
+  const bItems=ranked.filter(i=>i.rank==='B');
+  const cItems=ranked.filter(i=>i.rank==='C');
+  document.getElementById('abc-body').innerHTML=`
+    <div class="abc-grid">
+      <div class="abc-card a"><div class="abc-label">A</div><div style="font-size:18px;font-weight:700;color:var(--danger);">${aItems.length}品目</div><div class="abc-sub">重点管理（上位70%）</div></div>
+      <div class="abc-card b"><div class="abc-label">B</div><div style="font-size:18px;font-weight:700;color:var(--warning);">${bItems.length}品目</div><div class="abc-sub">通常管理（70〜90%）</div></div>
+      <div class="abc-card c"><div class="abc-label">C</div><div style="font-size:18px;font-weight:700;color:var(--success);">${cItems.length}品目</div><div class="abc-sub">簡易管理（90%〜）</div></div>
+    </div>
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>品目名</th><th>現在庫</th><th>累積比率</th><th>ランク</th><th>管理方針</th></tr></thead>
+      <tbody>${ranked.map(item=>{
+        const policy=item.rank==='A'?'毎日確認・発注点厳守':item.rank==='B'?'週次確認・定期発注':'月次確認・まとめ発注';
+        const cls=item.rank==='A'?'danger':item.rank==='B'?'warning':'success';
+        return `<tr><td style="font-weight:500;">${item.name}</td><td>${item.stock}</td><td>${item.pct}%</td><td><span class="status-badge ${cls}">${item.rank}</span></td><td style="font-size:12px;color:var(--muted);">${policy}</td></tr>`;
+      }).join('')}</tbody>
+    </table>
+    </div>
+  `;
+}
+
+function renderSummaryReport() {
+  const danger=items.filter(i=>i.stock<=i.reorder);
+  const over=items.filter(i=>i.stock>=i.max);
+  const ok=items.filter(i=>i.stock>i.reorder&&i.stock<i.max);
+  document.getElementById('summary-report-body').innerHTML=`
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px;">作成日：${today()}</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
+      <div class="summary-card"><div class="label">管理品目数</div><div class="value">${items.length}品目</div></div>
+      <div class="summary-card danger"><div class="label">要発注</div><div class="value">${danger.length}品目</div></div>
+      <div class="summary-card warning"><div class="label">過剰在庫</div><div class="value">${over.length}品目</div></div>
+      <div class="summary-card success"><div class="label">適正在庫</div><div class="value">${ok.length}品目</div></div>
+    </div>
+    ${danger.length?`<div style="background:var(--danger-bg);border:1px solid #fca5a5;border-radius:8px;padding:14px;margin-bottom:12px;"><p style="font-size:13px;font-weight:500;color:var(--danger);margin-bottom:8px;">⚠ 要発注品目（${danger.length}件）</p>${danger.map(i=>`<p style="font-size:13px;color:var(--danger-text);">・${i.name}：現在庫${i.stock} / 発注点${i.reorder}</p>`).join('')}</div>`:''}
+    ${over.length?`<div style="background:var(--warning-bg);border:1px solid #fcd34d;border-radius:8px;padding:14px;margin-bottom:12px;"><p style="font-size:13px;font-weight:500;color:var(--warning);margin-bottom:8px;">📦 過剰在庫品目（${over.length}件）</p>${over.map(i=>`<p style="font-size:13px;color:var(--warning-text);">・${i.name}：現在庫${i.stock} / 上限${i.max}</p>`).join('')}</div>`:''}
+    <div style="overflow-x:auto;">
+    <table>
+      <thead><tr><th>品目名</th><th>現在庫</th><th>発注点</th><th>上限</th><th>状態</th></tr></thead>
+      <tbody>${items.map(item=>{const s=getStatus(item);return `<tr><td style="font-weight:500;">${item.name}</td><td>${item.stock}</td><td>${item.reorder}</td><td>${item.max}</td><td><span class="status-badge ${s.cls}">${s.label}</span></td></tr>`;}).join('')}</tbody>
+    </table>
+    </div>
+  `;
+}
+
+// ===== PRINT =====
+function printSection(id) {
+  const content=document.getElementById(id).innerHTML;
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>在庫管理レポート</title>
+  <style>body{font-family:'Noto Sans JP',sans-serif;padding:24px;color:#141210;}table{width:100%;border-collapse:collapse;font-size:13px;}th,td{padding:8px 12px;border:1px solid #e5e7eb;text-align:left;}th{background:#f9fafb;font-weight:500;}
+  .summary-card{border:1px solid #e5e7eb;border-radius:8px;padding:14px;display:inline-block;margin:6px;min-width:120px;}
+  .label{font-size:11px;color:#6b7280;margin-bottom:4px;}.value{font-size:20px;font-weight:700;}
+  .status-badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:100px;}
+  .danger{background:#fee2e2;color:#991b1b;}.warning{background:#fef3c7;color:#92400e;}.success{background:#dcfce7;color:#065f46;}
+  .abc-label{font-size:20px;font-weight:700;}</style></head><body>${content}</body></html>`);
+  w.document.close();
+  setTimeout(()=>w.print(),500);
+}
+function printOrderSheet() { renderOrderSheet(); printSection('order-sheet-body'); }
+function printStocktake() { renderStocktake(); printSection('stocktake-body'); }
+function printABC() { renderABC(); printSection('abc-body'); }
+function printSummaryReport() { renderSummaryReport(); printSection('summary-report-body'); }
+
+render();
+</script>
+</body>
+</html>
